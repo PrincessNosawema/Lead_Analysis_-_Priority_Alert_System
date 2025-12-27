@@ -1,0 +1,865 @@
+{
+  "name": "Lead Analysis & Priority Alert System",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "6a9a0f84-8ac3-4f64-8f61-959ed12d725e",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1632,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1FXLLmuZ0OyWavARpil8UAmoNtcwD4S3mGwiXLBrow-I",
+          "mode": "list",
+          "cachedResultName": "Sales_Leads Data",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1FXLLmuZ0OyWavARpil8UAmoNtcwD4S3mGwiXLBrow-I/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1582238922,
+          "mode": "list",
+          "cachedResultName": "CRM Data",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1FXLLmuZ0OyWavARpil8UAmoNtcwD4S3mGwiXLBrow-I/edit#gid=1582238922"
+        },
+        "options": {
+          "dataLocationOnSheet": {
+            "values": {
+              "rangeDefinition": "detectAutomatically"
+            }
+          }
+        }
+      },
+      "id": "36d76b9b-2777-439d-a26b-0c912ae1fdc7",
+      "name": "Fetch External Leads",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        -1408,
+        416
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "klEGSQ3Yd1fcHMda",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate email format (comprehensive TLD list)\nfunction isValidEmail(email) {\n  // Basic format check\n  const regex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$/;\n  if (!regex.test(email) || email.length > 254) {\n    return false;\n  }\n  \n  // Extended list of valid TLDs (includes new gTLDs)\n  const validTLDs = [\n    // Generic\n    'com', 'org', 'net', 'edu', 'gov', 'mil', 'int',\n    // Tech & Business\n    'io', 'co', 'ai', 'app', 'dev', 'tech', 'online', 'digital',\n    'site', 'website', 'store', 'shop', 'cloud', 'solutions',\n    'services', 'software', 'systems', 'group', 'company',\n    // Industry-specific\n    'agency', 'consulting', 'legal', 'finance', 'marketing',\n    'media', 'design', 'studio', 'network', 'link', 'email',\n    'construction', 'build', 'contractors', 'builders',\n    // Common\n    'info', 'biz', 'name', 'pro', 'mobi', 'tel', 'asia',\n    'works', 'world', 'life', 'today', 'live', 'global',\n    // Country codes (popular ones)\n    'uk', 'us', 'ca', 'au', 'de', 'fr', 'jp', 'cn', 'in', 'br',\n    'ru', 'it', 'es', 'mx', 'nl', 'se', 'no', 'dk', 'fi', 'pl',\n    'nz', 'sg', 'hk', 'kr', 'tw', 'za', 'ae', 'ch', 'at', 'be'\n  ];\n  \n  const tld = email.split('.').pop().toLowerCase();\n  return validTLDs.includes(tld);\n}\n\n//  Clean phone (remove letters only)\nfunction cleanPhone(phone) {\n  return phone ? phone.toString().replace(/[A-Za-z]/g, '') : null;\n}\n\n// Helper: Generate placeholder email using a real domain\nfunction generatePlaceholderEmail(phone, name) {\n  // Use phone if available, otherwise use name or timestamp\n  // Remove all non-alphanumeric characters from phone\n  const cleanIdentifier = phone \n    ? phone.replace(/[^0-9]/g, '') \n    : (name?.replace(/\\s+/g, '').toLowerCase() || Date.now());\n  \n  // Use a real domain that HubSpot will accept\n  return `invalid.${cleanIdentifier}@placeholder-crm.com`;\n}\n\nconst leads = [];\n\nfor (const item of $input.all()) {\n  const lead = item.json;\n\n  // Normalize email\n  let normalizedEmail = lead.email ? lead.email.trim().toLowerCase() : null;\n\n  // Determine email status\n  let emailStatus = null;\n  let finalEmail = normalizedEmail;\n  let originalEmail = lead.email || null;\n\n  if (!normalizedEmail) {\n    emailStatus = \"missing email\";\n    finalEmail = generatePlaceholderEmail(cleanPhone(lead.phone), lead.name);\n  } else if (!isValidEmail(normalizedEmail)) {\n    emailStatus = \"invalid email, verify\";\n    finalEmail = generatePlaceholderEmail(cleanPhone(lead.phone), lead.name);\n  }\n\n  const prepared = {\n    ...lead,\n\n    // Email - use placeholder if invalid/missing\n    email: finalEmail,\n    original_email: originalEmail,  // Keep original for reference\n    email_status: emailStatus,      // Track validation status\n\n    // Phone (remove only letters)\n    phone: cleanPhone(lead.phone),\n\n    // Defaults\n    company_size: lead.company_size || 'Unknown',\n    industry: lead.industry || 'Unspecified',\n    call_transcript: lead.call_transcript || 'No transcript provided.',\n    name: lead.name || 'Unknown',\n    company: lead.company || 'Unknown',\n    title: lead.title || 'Unknown',\n    engagement_level: lead.engagement_level || '5',\n\n    processing_date: new Date().toISOString()\n  };\n\n  // Always process lead\n  leads.push({ json: prepared });\n}\n\nreturn leads;"
+      },
+      "id": "44104ce2-36e5-41ec-99d6-af734a1d81a8",
+      "name": "Normalize Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1184,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 5,
+        "options": {}
+      },
+      "id": "f63d5889-c0e0-4578-a6f9-550a8fd05874",
+      "name": "Loop Over Leads",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -960,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "groqApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "= {\n  \"model\": \"llama-3.3-70b-versatile\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n        \"content\": \"You are a specialized sales intelligence analyst for high-value B2B leads. Analyze the lead data, especially the Call Transcript and Engagement Level, to determine the Buying Intent Score (1-10).\\n\\nScoring Guidelines:\\n- **High Intent (8-10):** Strong fit, explicit need, and active discussion of budget/timeline in the transcript.\\n- **Medium Intent (4-7):** Clear pain points and potential fit, but lacking defined budget/urgency or having low engagement.\\n- **Low Intent (1-3):** Poor fit, low engagement, or weak/generic interest expressed in the transcript.\\n\\nOUTPUT RULES:\\n- Return a single, FLAT JSON object.\\n- DO NOT nest the results inside an \\\"analysis\\\" or \\\"result\\\" key.\\n- The root keys must be: buying_intent_score, urgency_level, pain_points, next_best_action, recommended_timing, etc.\\n- Pain points and recommendations must be specific and actionable.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"={{ \n        'Analyze this lead:\\\\n\\\\n' +\n        'Name: ' + $json.name + '\\\\n' +\n        'Company: ' + $json.company + '\\\\n' +\n        'Title: ' + $json.title + '\\\\n' +\n        'Phone: ' + $json.phone + '\\\\n' +\n        'Industry: ' + $json.industry + '\\\\n' +\n        'Company Size: ' + $json.company_size + '\\\\n' +\n        'Call Transcript: ' + $json.call_transcript + '\\\\n\\\\n' +\n        'Provide analysis in JSON format with:\\\\n' +\n        '- buying_intent_score (1-10)\\\\n' +\n        '- urgency_level (low/medium/high)\\\\n' +\n        '- budget_indicators (boolean)\\\\n' +\n        '- decision_maker (boolean)\\\\n' +\n        '- pain_points (array)\\\\n' +\n        '- objections (array)\\\\n' +\n        '- sentiment (positive/neutral/negative)\\\\n' +\n        '- next_best_action (string)\\\\n' +\n        '- recommended_timing (string)\\\\n' +\n        '- talking_points (array)'\n      }}\"\n    }\n  ],\n  \"temperature\": 0.3,\n  \"response_format\": {\n    \"type\": \"json_object\"\n  }\n}",
+        "options": {}
+      },
+      "id": "dd59409d-ff64-490e-bb34-ceff9847df05",
+      "name": "Groq AI Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -720,
+        432
+      ],
+      "credentials": {
+        "groqApi": {
+          "id": "lky9DnNb2Et9UiG5",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Groq response and calculate composite score for ALL items\nconst results = [];\n\n// Get all items from the current execution\nfor (let i = 0; i < $input.all().length; i++) {\n  const groqResult = $input.all()[i].json;\n  const lead = $('Loop Over Leads').all()[i].json;\n\n  // Check if Groq failed or returned empty\n  if (!groqResult.choices || !groqResult.choices[0] || !groqResult.choices[0].message) {\n    results.push({\n      json: {\n        ...lead,\n        ai_analysis: { \n          buying_intent_score: 5,\n          urgency_level: 'low',\n          budget_indicators: false,\n          decision_maker: false,\n          pain_points: ['Analysis failed'],\n          objections: [],\n          sentiment: 'neutral',\n          next_best_action: 'Manual review required',\n          recommended_timing: 'TBD',\n          talking_points: []\n        },\n        composite_score: 5,\n        notes_summary: \"⚠️ AI Analysis Failed - Manual Review Required\",\n        intent_tag: \"Medium Intent\",\n        analysis_timestamp: new Date().toISOString(),\n        analysis_status: 'failed'\n      }\n    });\n    continue;\n  }\n\n  let groqResponse;\n  try {\n    groqResponse = JSON.parse(groqResult.choices[0].message.content);\n    // Validate required fields\n    if (!groqResponse.buying_intent_score) groqResponse.buying_intent_score = 5;\n    if (!groqResponse.pain_points) groqResponse.pain_points = [];\n    if (!groqResponse.next_best_action) groqResponse.next_best_action = 'Follow up required';\n    if (!groqResponse.recommended_timing) groqResponse.recommended_timing = 'Within 48 hours';\n    if (!groqResponse.urgency_level) groqResponse.urgency_level = 'medium';\n    if (!groqResponse.sentiment) groqResponse.sentiment = 'neutral';\n  } catch (e) {\n    groqResponse = { \n      buying_intent_score: 5, \n      pain_points: ['Parse error'],\n      next_best_action: 'Manual review required',\n      recommended_timing: 'TBD',\n      urgency_level: 'medium',\n      sentiment: 'neutral'\n    };\n  }\n\n  // Composite scoring algorithm\n  const scores = {\n    ai_intent: (parseFloat(groqResponse.buying_intent_score) || 5) * 0.5,\n    engagement: (parseFloat(lead.engagement_level) || 5) * 0.3,\n    fit_score: calculateFitScore(lead) * 0.2\n  };\n\n  const composite_score = Object.values(scores).reduce((a, b) => a + b, 0);\n\n  // Determine Intent Tag for HubSpot\n  let intent_tag;\n  if (composite_score >= 8) {\n    intent_tag = 'High Intent';\n  } else if (composite_score >= 5) {\n    intent_tag = 'Medium Intent';\n  } else {\n    intent_tag = 'Low Intent';\n  }\n\n  // Create a text summary for the HubSpot Custom Field\n  const painPointsText = Array.isArray(groqResponse.pain_points) && groqResponse.pain_points.length > 0\n    ? groqResponse.pain_points.join(', ')\n    : 'None detected';\n\n  const notesSummary = `🤖 AI ANALYSIS\\nScore: ${composite_score.toFixed(1)}/10\\nUrgency: ${groqResponse.urgency_level || 'medium'}\\nAction: ${groqResponse.next_best_action}\\nPain Points: ${painPointsText}\\nTiming: ${groqResponse.recommended_timing}`;\n\n  results.push({\n    json: {\n      ...lead,\n      ai_analysis: groqResponse,\n      composite_score: parseFloat(composite_score.toFixed(2)),\n      notes_summary: notesSummary,\n      intent_tag: intent_tag,\n      analysis_timestamp: new Date().toISOString(),\n      analysis_status: 'success'\n    }\n  });\n}\n\nfunction calculateFitScore(lead) {\n  let score = 5;\n  if (['SaaS', 'Finance', 'Technology'].includes(lead.industry)) score += 2;\n  if (['50-200', '200-500', '500+'].includes(lead.company_size)) score += 2;\n  return Math.min(score, 10);\n}\n\nreturn results;"
+      },
+      "id": "f84c3a26-d5f1-4695-a207-78a7662a9e61",
+      "name": "Calculate Score & Notes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -512,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.composite_score }}",
+                    "rightValue": 8,
+                    "operator": {
+                      "type": "number",
+                      "operation": "gte"
+                    },
+                    "id": "013144ab-f906-491c-9b62-abc92e441c89"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "High Intent"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.composite_score }}",
+                    "rightValue": 5,
+                    "operator": {
+                      "type": "number",
+                      "operation": "gte"
+                    },
+                    "id": "f97205ba-ebf8-434c-a4a6-61975f578148"
+                  },
+                  {
+                    "leftValue": "={{ $json.composite_score }}",
+                    "rightValue": 8,
+                    "operator": {
+                      "type": "number",
+                      "operation": "lt"
+                    },
+                    "id": "d24f85bc-1275-4899-890d-7fd57c94f4fc"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Medium Intent"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.composite_score }}",
+                    "rightValue": 5,
+                    "operator": {
+                      "type": "number",
+                      "operation": "lt"
+                    },
+                    "id": "979fe07b-35d5-4f23-a6db-a77e89e82a5c"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Low Intent"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "911d9d16-ea8a-445a-a0ee-9c8c7678deac",
+      "name": "Route by Score",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        -288,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "numberInputs": 3
+      },
+      "id": "fa8632a0-72cd-4b6b-9f74-0fbb0a018183",
+      "name": "Merge All Routes",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1056,
+        752
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get ALL items from Aggregate node (which has collected all batches)\nconst allLeads = $input.all().map(item => item.json);\n\nconsole.log('Total leads processed:', allLeads.length);\n\nif (allLeads.length === 0) {\n  return [{\n    json: {\n      summary: {\n        total_leads: 0,\n        error: 'No leads were processed',\n        high_intent: 0,\n        medium_intent: 0,\n        low_intent: 0,\n        average_score: 0,\n        successful_analyses: 0,\n        failed_analyses: 0,\n        generated_at: new Date().toISOString()\n      },\n      detailed_leads: []\n    }\n  }];\n}\n\nconst summary = {\n  total_leads: allLeads.length,\n  high_intent: allLeads.filter(l => l.composite_score >= 8).length,\n  medium_intent: allLeads.filter(l => l.composite_score >= 5 && l.composite_score < 8).length,\n  low_intent: allLeads.filter(l => l.composite_score < 5).length,\n  average_score: (allLeads.reduce((sum, l) => sum + (l.composite_score || 0), 0) / allLeads.length).toFixed(2),\n  successful_analyses: allLeads.filter(l => l.analysis_status === 'success').length,\n  failed_analyses: allLeads.filter(l => l.analysis_status === 'failed').length,\n  generated_at: new Date().toISOString()\n};\n\nreturn [{ json: { summary, detailed_leads: allLeads } }];\n"
+      },
+      "id": "e6bf6447-ed15-480a-8e3c-a127bdf9fda2",
+      "name": "Generate Summary Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -720,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Restore the data from the Route node, ignoring the \"OK\" from Slack\nreturn {\n  json: $('Route by Score').item.json\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        256,
+        0
+      ],
+      "id": "e3ee7857-7674-4275-aa1f-92168c844ad7",
+      "name": "Restore High Intent Data"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return {\n  json: $('Route by Score').item.json\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        256,
+        432
+      ],
+      "id": "2cdab196-58e7-4b06-a355-7d9c5f9955c0",
+      "name": "Restore Medium Intent Data"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "email": "={{ $json.email }}",
+        "additionalFields": {
+          "companyName": "={{ $json.company }}",
+          "customPropertiesUi": {
+            "customPropertiesValues": [
+              {
+                "property": "ai_lead_score",
+                "value": "={{ $json.composite_score }}"
+              },
+              {
+                "property": "intent_tag",
+                "value": "={{ $json.intent_tag }}"
+              },
+              {
+                "property": "analysis_notes",
+                "value": "={{ $json.notes_summary }}"
+              },
+              {
+                "property": "email_status",
+                "value": "={{ $json.email_status || 'valid' }}"
+              },
+              {
+                "property": "original_email",
+                "value": "={{ $json.original_email }}"
+              }
+            ]
+          },
+          "firstName": "={{ $json.name.split(' ')[0] }}",
+          "industry": "={{ $json.industry }}",
+          "jobTitle": "={{ $json.title }}",
+          "lastName": "={{ $json.name.split(' ').slice(1).join(' ') || '' }}",
+          "phoneNumber": "={{ $json.phone }}"
+        },
+        "options": {
+          "resolveData": false
+        }
+      },
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.2,
+      "position": [
+        32,
+        432
+      ],
+      "id": "56acb100-b08d-48d5-ab74-8c36f6ff68e1",
+      "name": "Create or Update Medium Score Lead",
+      "credentials": {
+        "hubspotOAuth2Api": {
+          "id": "JQExewwKl1cG6YaQ",
+          "name": "HubSpot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "email": "={{ $json.email }}",
+        "additionalFields": {
+          "companyName": "={{ $json.company }}",
+          "customPropertiesUi": {
+            "customPropertiesValues": [
+              {
+                "property": "ai_lead_score",
+                "value": "={{ $json.composite_score }}"
+              },
+              {
+                "property": "intent_tag",
+                "value": "={{ $json.intent_tag }}"
+              },
+              {
+                "property": "analysis_notes",
+                "value": "={{ $json.notes_summary }}"
+              },
+              {
+                "property": "email_status",
+                "value": "={{ $json.email_status || 'valid' }}"
+              },
+              {
+                "property": "original_email",
+                "value": "={{ $json.original_email }}"
+              }
+            ]
+          },
+          "firstName": "={{ $json.name.split(' ')[0] }}",
+          "industry": "={{ $json.industry }}",
+          "jobTitle": "={{ $json.title }}",
+          "lastName": "={{ $json.name.split(' ').slice(1).join(' ') || '' }}",
+          "phoneNumber": "={{ $json.phone }}"
+        },
+        "options": {
+          "resolveData": false
+        }
+      },
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.2,
+      "position": [
+        16,
+        688
+      ],
+      "id": "f6a78886-ef47-4f95-82f0-82c547415dc8",
+      "name": "Create or Update Low Score Leads",
+      "credentials": {
+        "hubspotOAuth2Api": {
+          "id": "JQExewwKl1cG6YaQ",
+          "name": "HubSpot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "email": "={{ $json.email }}",
+        "additionalFields": {
+          "companyName": "={{ $json.company }}",
+          "customPropertiesUi": {
+            "customPropertiesValues": [
+              {
+                "property": "ai_lead_score",
+                "value": "={{ $json.composite_score }}"
+              },
+              {
+                "property": "intent_tag",
+                "value": "={{ $json.intent_tag }}"
+              },
+              {
+                "property": "analysis_notes",
+                "value": "={{ $json.notes_summary }}"
+              },
+              {
+                "property": "original_email",
+                "value": "={{ $json.original_email }}"
+              },
+              {
+                "property": "email_status",
+                "value": "={{ $json.email_status || 'valid' }}"
+              }
+            ]
+          },
+          "firstName": "={{ $json.name.split(' ')[0] }}",
+          "industry": "={{ $json.industry }}",
+          "jobTitle": "={{ $json.title }}",
+          "lastName": "={{ $json.name.split(' ').slice(1).join(' ') || '' }}",
+          "phoneNumber": "={{ $json.phone }}"
+        },
+        "options": {
+          "resolveData": false
+        }
+      },
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.2,
+      "position": [
+        32,
+        0
+      ],
+      "id": "52819226-fae0-4e57-a3b5-64a6e6e48bf5",
+      "name": "Create or Update High Score Leads",
+      "credentials": {
+        "hubspotOAuth2Api": {
+          "id": "JQExewwKl1cG6YaQ",
+          "name": "HubSpot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Restore the data from the Route node, ignoring the \"OK\" from Slack\nreturn {\n  json: $('Route by Score').item.json\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        624,
+        688
+      ],
+      "id": "ee8e13ce-62e0-45be-8c2a-b3b3586d5dad",
+      "name": "Restore Low Intent Data"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Restore the data from the Route node, ignoring the \"OK\" from Slack\nreturn {\n  json: $('Route by Score').item.json\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        432
+      ],
+      "id": "3a99eb64-a5cc-49ca-a42d-132a4ab36ce5",
+      "name": "Restore Medium Intent Data1"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Restore the data from the Route node, ignoring the \"OK\" from Slack\nreturn {\n  json: $('Route by Score').item.json\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        0
+      ],
+      "id": "b420b269-5743-4693-8d96-8a9a031de4ec",
+      "name": "Restore High Intent Data1"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C09VD05S19D",
+          "mode": "list",
+          "cachedResultName": "lead-summary-report"
+        },
+        "text": "=📊 *LEAD ANALYSIS SUMMARY*\n\n*Overview:*\n*-* Total Leads Analyzed: {{ $json.summary.total_leads }}\n*-* Average Score: {{ $json.summary.average_score }}/10\n*-* Successful Analyses: {{ $json.summary.successful_analyses }}\n*-* Failed Analyses: {{ $json.summary.failed_analyses }}\n\n*Score Distribution:*\n- 🔥 High Intent (8-10): {{ $json.summary.high_intent }} leads\n- ⚡ Medium Intent (5-7): {{ $json.summary.medium_intent }} leads\n- 📋 Low Intent (0-4): {{ $json.summary.low_intent }} leads\n\nGenerated: {{ $json.summary.generated_at }}_",
+        "otherOptions": {
+          "includeLinkToWorkflow": false
+        }
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [
+        -512,
+        208
+      ],
+      "id": "09c3ce74-b17a-4a55-96f8-0cd12b069751",
+      "name": "Send Summary Report",
+      "webhookId": "6802b66b-0479-43a4-898e-f5d46fa8e52b",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "HcE9AJJ8T6CV9Ln6",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C09V33ST74P",
+          "mode": "list",
+          "cachedResultName": "lead-priority-alerts"
+        },
+        "text": "=⚡ *MEDIUM PRIORITY LEAD*\n\n*{{ $json.name }}* from {{ $json.company }}\n*Email:* {{ $json.email_status ? '⚠️ ' + ($json.original_email || 'Missing') + ' (Invalid - Verify)' : $json.email }}\n*Phone:* {{ $json.phone }}\n*Score:* {{ $json.composite_score }}/10\n\n*Pain Points:*\n{{ $json.ai_analysis.pain_points && Array.isArray($json.ai_analysis.pain_points) ? $json.ai_analysis.pain_points.map(p => '• ' + p).join('\\n') : '• None detected' }}\n\n*Next Action:*\n~ {{ $json.ai_analysis.next_best_action || 'Follow up required' }}\n~ *Timing:* {{ $json.ai_analysis.recommended_timing || 'Within 48 hours' }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": false
+        }
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [
+        496,
+        432
+      ],
+      "id": "66728330-fa2c-4a90-b581-6c20192e5d41",
+      "name": "Send Medium Priority Lead Alerts",
+      "webhookId": "6802b66b-0479-43a4-898e-f5d46fa8e52b",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "HcE9AJJ8T6CV9Ln6",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C09V33ST74P",
+          "mode": "list",
+          "cachedResultName": "lead-priority-alerts"
+        },
+        "text": "=🔥 *HIGH PRIORITY LEAD*\n\n*{{ $json.name }}* from {{ $json.company }}\n*Email:* {{ $json.email_status ? '⚠️ ' + ($json.original_email || 'Missing') + ' (Invalid - Verify)' : $json.email }}\n*Phone:* {{ $json.phone }}\n*Score:* {{ $json.composite_score }}/10\n\n*Pain Points:*\n{{ $json.ai_analysis.pain_points && Array.isArray($json.ai_analysis.pain_points) ? $json.ai_analysis.pain_points.map(p => '• ' + p).join('\\n') : '• None detected' }}\n\n*Next Action:*\n~ {{ $json.ai_analysis.next_best_action || 'Follow up required' }}\n~ *Timing:* {{ $json.ai_analysis.recommended_timing || 'ASAP' }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": false
+        }
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [
+        496,
+        0
+      ],
+      "id": "bc93c893-6178-4ec6-8c81-fd2d05b04d4c",
+      "name": "Send High Priority Lead Alerts",
+      "webhookId": "6802b66b-0479-43a4-898e-f5d46fa8e52b",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "HcE9AJJ8T6CV9Ln6",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Data Ingestion & Sanitization: \nIngests raw lead rows from Google Sheets and performs strict pre-processing via Code node.\n- Validates email formats (TLD check) and sanitizes phone numbers.\n- Auto-generates placeholder emails for HubSpot compatibility if missing.\n- Implements batching (Size: 5) to manage Groq/HubSpot API rate limits.\n",
+        "height": 176,
+        "width": 560,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -1520,
+        224
+      ],
+      "typeVersion": 1,
+      "id": "64e4ab85-6f17-42bf-8375-bd772c349a19",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "## AI Analysis & Composite Scoring:\nSends lead context to Groq (Llama-3.3-70b) to extract Buying Intent, Pain Points, and Urgency.\n- Logic: Calculates a weighted `composite_score`: AI Intent (50%) + Engagement (30%) + ICP Fit (20%).\n- Fail-safe: Includes error handling to assign default \"Medium Intent\" scores if the LLM fails to parse.\n- Routing: Segments leads into High (Score ≥8), Medium (5-7), or Low (<5) streams.\n",
+        "height": 224,
+        "width": 608,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -784,
+        624
+      ],
+      "typeVersion": 1,
+      "id": "42d4c3a6-7f42-455d-8694-0730c5f645ad",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "## CRM Sync & Alerting:\nUpserts contacts to HubSpot with enriched custom properties (Intent Tag, AI Summary, Score).\n- Real-time: Sends instant Slack alerts to Sales for High/Medium priority leads.\n- Reporting: Aggregates all processed batches into a final summary report showing throughput and score distribution.\n- Loop: Merges routes back to the batch loop to process the next set of 5 leads.",
+        "height": 208,
+        "width": 640,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        96,
+        176
+      ],
+      "typeVersion": 1,
+      "id": "8ef30840-a387-4d63-9d65-cd78c931dddf",
+      "name": "Sticky Note2"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch External Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch External Leads": {
+      "main": [
+        [
+          {
+            "node": "Normalize Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Data": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Leads": {
+      "main": [
+        [
+          {
+            "node": "Generate Summary Report",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Groq AI Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq AI Analysis": {
+      "main": [
+        [
+          {
+            "node": "Calculate Score & Notes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Score & Notes": {
+      "main": [
+        [
+          {
+            "node": "Route by Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Score": {
+      "main": [
+        [
+          {
+            "node": "Create or Update High Score Leads",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create or Update Medium Score Lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create or Update Low Score Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge All Routes": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Summary Report": {
+      "main": [
+        [
+          {
+            "node": "Send Summary Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore High Intent Data": {
+      "main": [
+        [
+          {
+            "node": "Send High Priority Lead Alerts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore Medium Intent Data": {
+      "main": [
+        [
+          {
+            "node": "Send Medium Priority Lead Alerts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create or Update Low Score Leads": {
+      "main": [
+        [
+          {
+            "node": "Restore Low Intent Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore Low Intent Data": {
+      "main": [
+        [
+          {
+            "node": "Merge All Routes",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Create or Update Medium Score Lead": {
+      "main": [
+        [
+          {
+            "node": "Restore Medium Intent Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create or Update High Score Leads": {
+      "main": [
+        [
+          {
+            "node": "Restore High Intent Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore High Intent Data1": {
+      "main": [
+        [
+          {
+            "node": "Merge All Routes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore Medium Intent Data1": {
+      "main": [
+        [
+          {
+            "node": "Merge All Routes",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Send Medium Priority Lead Alerts": {
+      "main": [
+        [
+          {
+            "node": "Restore Medium Intent Data1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send High Priority Lead Alerts": {
+      "main": [
+        [
+          {
+            "node": "Restore High Intent Data1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "ff30b4a9-bd91-4010-a0f3-ba1bbd5b08c6",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "14648d4acf1730d1da4c4b7b1675a2d6025b1dea5f7b1d91161fccb4dad58b6a"
+  },
+  "id": "Cv8BTCG2maUPynsH",
+  "tags": []
+}
