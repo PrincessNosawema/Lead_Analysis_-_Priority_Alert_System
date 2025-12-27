@@ -13,7 +13,7 @@ This project is an enterprise-grade lead processing pipeline designed to automat
 
 ## 📸 Workflow Screenshot
 
-![Workflow Screenshot](workflow_screenshot.png)
+![Workflow Screenshot](Demo_&_Screenshot/workflow_screenshot.png)
 
 ## 🛠️ Technical Architecture
 
